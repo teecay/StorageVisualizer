@@ -12,8 +12,8 @@ class StorageVisualizer
     puts "\nCommand line usage: \n\t[sudo] ./visualize_storage.rb [directory to visualize (default ~/) | -h (help) -i | --install (install to /usr/local/bin)]\n\n"
     puts "API usage: "
     puts "\t'require storage_visualizer'"
-    puts "\tvs = StorageVisualizer.new('[directory to visualize, ~/ by default]')"
-    puts "\tvs.run_storage_analysis\n\n"
+    puts "\tsv = StorageVisualizer.new('[directory to visualize, ~/ by default]')"
+    puts "\tsv.run_storage_analysis\n\n"
     puts "A report will be created in the current directory named as such: StorageReport_2015_05_25-17_19_30.html"
     puts "Status messages are printed to STDOUT"
     puts "\n\n"
@@ -62,11 +62,12 @@ class StorageVisualizer
   
   
   
-  def get_string_version_of_data
+  def format_data_for_the_chart
     working_string = "[\n"
     
     self.tree.each_with_index do |entry, index|
       if(index == self.tree.length - 1)
+        # this is the next to last element, it gets no comma
         working_string << "[ '#{entry[0]}', '#{entry[1]}', #{entry[2]} ]\n"
       else
         # mind the comma
@@ -80,9 +81,7 @@ class StorageVisualizer
   
   
   def write_storage_report
-    self.get_string_version_of_data
-    
-    
+  
     the_html = %q|<html>
     <body>
     <script type="text/javascript"
@@ -265,6 +264,7 @@ class StorageVisualizer
   def run_storage_analysis
     self.get_basic_disk_info
     self.analyze_dirs(self.target_dir)
+    self.format_data_for_the_chart
     self.write_storage_report
     
   end
