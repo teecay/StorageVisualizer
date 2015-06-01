@@ -20,6 +20,7 @@ class StorageVisualizer
   end
   
   # To do:
+  # - Add a summary at the top showing storage utilization 
   # - Specify blocksize and do not assume 512 bytes (use the -k flag, which reports blocks as KB)
   # - Allow the threshold to be specified (default is 5%)
   # - Allow output filename to be specified
@@ -29,10 +30,16 @@ class StorageVisualizer
   # - Create an installer that sets up cron scheduling and add polling to the webpage
   # - What to do about directories with the same name under different parents
 
-  attr_accessor :target_dir
+  # disk Bytes
   attr_accessor :capacity
   attr_accessor :used
   attr_accessor :available
+  # disk GB for display
+  attr_accessor :capacity_gb
+  attr_accessor :used_gb
+  attr_accessor :available_gb
+  # other 
+  attr_accessor :target_dir
   attr_accessor :tree
   attr_accessor :tree_formatted
   attr_accessor :diskhash
@@ -87,11 +94,40 @@ class StorageVisualizer
     <body>
     <script type="text/javascript"
           src="https://www.google.com/jsapi?autoload={'modules':[{'name':'visualization','version':'1.1','packages':['sankey']}]}">
-               
-
-               
-               
     </script>
+    
+    <style>
+      td
+        {
+          font-family:sans-serif;
+          font-size:8pt;
+        }
+
+      .bigger
+          {
+            font-family:sans-serif;
+            font-size:10pt;
+            font-weight:bold
+          }
+    
+    </style>
+
+    <div class="table">
+      <div class="bigger">Storage Report</div>
+      <table>
+        <tr>
+          <td style="text-align:right">Disk Capacity:</td><td>| + self.capacity_gb + %q| GB</td>
+        </tr>
+        <tr>
+          <td style="text-align:right">Disk Used:</td><td>| + self.used_gb + %q| GB</td>
+        </tr>
+        <tr>
+          <td style="text-align:right">Free Space:</td><td>| + self.available_gb + %q| GB</td>
+        </tr>
+      </table>
+          
+    </div>
+
 
     <div id="sankey_multiple" style="width: 900px; height: 300px;"></div>
 
@@ -171,10 +207,17 @@ class StorageVisualizer
     self.used = self.diskhash['/']['used']
     self.available = self.diskhash['/']['available']
 
+
+
     free_space = (self.available).to_i
     free_space_gb = "#{'%.0f' % (free_space / 1024 / 1024 / 1024)}"
     free_space_array = ['/', 'Free Space', free_space_gb]
     self.tree.push(free_space_array)
+
+    self.capacity_gb  = "#{'%.0f' % (self.capacity.to_i / 1024 / 1024 / 1024)}"
+    self.used_gb      = "#{'%.0f' % (self.used.to_i / 1024 / 1024 / 1024)}"
+    self.available_gb = "#{'%.0f' % (self.available.to_i / 1024 / 1024 / 1024)}"
+
 
 
   end
