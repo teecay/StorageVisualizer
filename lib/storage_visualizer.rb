@@ -13,32 +13,33 @@ class StorageVisualizer
     puts "API usage: "
     puts "\t'require storage_visualizer'"
     puts "\tsv = StorageVisualizer.new('[directory to visualize, ~/ by default]')"
-    puts "\tsv.run_storage_analysis\n\n"
+    puts "\tsv.run()\n\n"
     puts "A report will be created in the current directory named as such: StorageReport_2015_05_25-17_19_30.html"
     puts "Status messages are printed to STDOUT"
     puts "\n\n"
   end
   
   # To do:
+  # - Specify blocksize and do not assume 512 bytes (use the -k flag, which reports blocks as KB)
   # - Allow the threshold to be specified (default is 5%)
   # - Allow output filename to be specified
   # - Enable for filesystems not mounted at the root '/'
   # - Prevent paths on the graph from crossing
+  # - See if it would be cleaner to use the googlecharts gem (gem install googlecharts)
+  # - Create an installer that sets up cron scheduling and add polling to the webpage
+  # - What to do about directories with the same name under different parents
 
   attr_accessor :target_dir
   attr_accessor :capacity
   attr_accessor :used
   attr_accessor :available
   attr_accessor :tree
+  attr_accessor :tree_formatted
   attr_accessor :diskhash
   attr_accessor :threshold_pct
-  attr_accessor :tree_formatted
 
   # Constructor
   def initialize(target_dir_passed = nil)
-    # target_dir_passed = nil, report_filename = nil
-    
-    puts "Instantiating object"
 
     if (target_dir_passed != nil)
       expanded = File.expand_path(target_dir_passed)
@@ -85,7 +86,11 @@ class StorageVisualizer
     the_html = %q|<html>
     <body>
     <script type="text/javascript"
-               src="https://www.google.com/jsapi?autoload={'modules':[{'name':'visualization','version':'1.1','packages':['sankey']}]}">
+          src="https://www.google.com/jsapi?autoload={'modules':[{'name':'visualization','version':'1.1','packages':['sankey']}]}">
+               
+
+               
+               
     </script>
 
     <div id="sankey_multiple" style="width: 900px; height: 300px;"></div>
@@ -261,7 +266,7 @@ class StorageVisualizer
   end
   
   
-  def run_storage_analysis
+  def run
     self.get_basic_disk_info
     self.analyze_dirs(self.target_dir)
     self.format_data_for_the_chart
@@ -292,13 +297,11 @@ def run
   end
 
   puts "\nRunning visualization"
-  vs.run_storage_analysis()
+  vs.run()
   
-  puts "dumping tree: "
-  pp vs.tree
+  # puts "dumping tree: "
+  # pp vs.tree
   puts "Formatted tree\n#{vs.tree_formatted}"
-  # puts "Dumping object"
-  # puts vs.to_yaml
   
 end
 
