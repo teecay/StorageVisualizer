@@ -382,7 +382,7 @@ def run
       return
     elsif (ARGV[0] == '-i' || ARGV[0] == '--install')
       # install a soft link to /usr/local/bin
-      cmd = "ln -s #{File.expand_path(__FILE__)} /usr/local/bin/#{File.basename(__FILE__)}"
+      cmd = "ln -s #{File.expand_path(__FILE__)} /usr/local/bin/#{File.basename(__FILE__).split('.')[0]}"
       puts "Install cmd: #{cmd}"
       `#{cmd}`
       return
