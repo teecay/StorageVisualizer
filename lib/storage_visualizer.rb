@@ -1,5 +1,22 @@
 #!/usr/bin/env ruby
 
+# @author Terry Case <terrylcase@gmail.com>
+
+#  Copyright 2015 Terry Case
+#  
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#  
+#      http://www.apache.org/licenses/LICENSE-2.0
+#  
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+
 require 'pp'
 require 'yaml'
 require 'date'
@@ -20,11 +37,12 @@ class StorageVisualizer
   end
   
   # To do:
-  # - Add a summary at the top showing storage utilization 
-  # - Specify blocksize and do not assume 512 bytes (use the -k flag, which reports blocks as KB)
+  # x Make it work on linux
+  # x Specify blocksize and do not assume 512 bytes (use the -k flag, which reports blocks as KB)
+  # - Enable for filesystems not mounted at the root '/'
   # - Allow the threshold to be specified (default is 5%)
   # - Allow output filename to be specified
-  # - Enable for filesystems not mounted at the root '/'
+  # Maybe:
   # - Prevent paths on the graph from crossing
   # - See if it would be cleaner to use the googlecharts gem (gem install googlecharts)
   # - Create an installer that sets up cron scheduling and add polling to the webpage
@@ -178,8 +196,31 @@ class StorageVisualizer
   
   def get_basic_disk_info
     # df -l gets info about locally-mounted filesystems
-    output = `df -l`
-    # Looks like this:
+    output = `df -lk`
+    
+    # OSX
+    #   Filesystem                          1024-blocks  Used      Available   Capacity   iused     ifree       %iused  Mounted on
+    #   /dev/disk1                          975912960    349150592 626506368   36%        87351646  156626592   36%     /
+    #   localhost:/QwnJE6UBvlR1EvqouX6gMM   975912960    975912960         0   100%        0         0          100%    /Volumes/MobileBackups
+    
+    # CentOS:
+    #   Filesystem     1K-blocks    Used Available Use% Mounted on
+    #   /dev/xvda1      82436764 3447996  78888520   5% /
+    #   devtmpfs        15434608      56  15434552   1% /dev
+    #   tmpfs           15443804       0  15443804   0% /dev/shm
+    
+    # Ubuntu:
+    #   Filesystem     1K-blocks   Used Available Use% Mounted on
+    #   /dev/xvda1      30832636 797568  28676532   3% /
+    #   none                   4      0         4   0% /sys/fs/cgroup
+    #   udev             3835900     12   3835888   1% /dev
+    #   tmpfs             769376    188    769188   1% /run
+    #   none                5120      0      5120   0% /run/lock
+    #   none             3846876      0   3846876   0% /run/shm
+    #   none              102400      0    102400   0% /run/user
+    #   /dev/xvdb       30824956  45124  29207352   1% /mnt
+
+    # Populate disk info into a hash of hashes
     # {"/"=>
     #   {"capacity"=>498876809216, "used"=>434777001984, "available"=>63837663232},
     #  "/Volumes/MobileBackups"=>
@@ -191,14 +232,26 @@ class StorageVisualizer
         next
       end
       cols = line.split
-      # ["Filesystem", "512-blocks", "Used", "Available", "Capacity", "iused", "ifree", "%iused", "Mounted", "on"]
+      # ["Filesystem", "1024-blocks", "Used", "Available", "Capacity", "iused", "ifree", "%iused", "Mounted", "on"]
       # line: ["/dev/disk1", "974368768", "849157528", "124699240", "88%", "106208689", "15587405", "87%", "/"]
       
-      self.diskhash[cols[8]] = {
-        'capacity' => (cols[1].to_i * 512).to_i,
-        'used' => (cols[2].to_i * 512).to_i,
-        'available' => (cols[3].to_i * 512).to_i
-      }
+      if cols.length == 9
+        # OSX
+        self.diskhash[cols[8]] = {
+          'capacity' => (cols[1].to_i ).to_i,
+          'used' => (cols[2].to_i ).to_i,
+          'available' => (cols[3].to_i ).to_i
+        }
+      elsif cols.length == 6
+        # Ubuntu & CentOS
+        self.diskhash[cols[5]] = {
+          'capacity' => (cols[1].to_i ).to_i,
+          'used' => (cols[2].to_i ).to_i,
+          'available' => (cols[3].to_i ).to_i
+        }
+      else
+        raise "Reported disk utilization not understood"
+      end
     end
 
     # puts "Disk mount info:"
@@ -210,13 +263,13 @@ class StorageVisualizer
 
 
     free_space = (self.available).to_i
-    free_space_gb = "#{'%.0f' % (free_space / 1024 / 1024 / 1024)}"
+    free_space_gb = "#{'%.0f' % (free_space / 1024 / 1024)}"
     free_space_array = ['/', 'Free Space', free_space_gb]
     self.tree.push(free_space_array)
 
-    self.capacity_gb  = "#{'%.0f' % (self.capacity.to_i / 1024 / 1024 / 1024)}"
-    self.used_gb      = "#{'%.0f' % (self.used.to_i / 1024 / 1024 / 1024)}"
-    self.available_gb = "#{'%.0f' % (self.available.to_i / 1024 / 1024 / 1024)}"
+    self.capacity_gb  = "#{'%.0f' % (self.capacity.to_i / 1024 / 1024)}"
+    self.used_gb      = "#{'%.0f' % (self.used.to_i / 1024 / 1024)}"
+    self.available_gb = "#{'%.0f' % (self.available.to_i / 1024 / 1024)}"
 
 
 
@@ -241,19 +294,19 @@ class StorageVisualizer
     end
 
 
-    cmd = "du -sx \"#{dir_to_analyze}\""
+    cmd = "du -sxk \"#{dir_to_analyze}\""
     puts "\trunning #{cmd}"
     output = `#{cmd}`.strip().split("\t")
     # puts "Du output:"
     # pp output
-    size = output[0].to_i * 512
-    size_gb = "#{'%.0f' % (size.to_f / 1024 / 1024 / 1024)}"
+    size = output[0].to_i 
+    size_gb = "#{'%.0f' % (size.to_f / 1024 / 1024)}"
     # puts "Size: #{size}\nCapacity: #{self.diskhash['/']['capacity']}"
     
     occupancy = (size.to_f / self.capacity.to_f)
     occupancy_pct = "#{'%.0f' % (occupancy * 100)}"
     
-    capacity_gb = "#{'%.0f' % (self.capacity.to_f / 1024 / 1024 / 1024)}"
+    capacity_gb = "#{'%.0f' % (self.capacity.to_f / 1024 / 1024)}"
     
     # if this dir contains more than 5% of disk space, add it to the tree
     
@@ -265,7 +318,7 @@ class StorageVisualizer
       if (dir_to_analyze == self.target_dir)
         
         other_space = self.used - size
-        other_space_gb = "#{'%.0f' % (other_space / 1024 / 1024 / 1024)}"
+        other_space_gb = "#{'%.0f' % (other_space / 1024 / 1024)}"
         other_space_array = ['/', 'Other', other_space_gb]
 
         short_target_dir = self.target_dir.split('/').reverse[0]
