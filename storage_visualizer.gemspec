@@ -1,4 +1,6 @@
 
+# gem build storage_visualizer.gemspec
+# gem push storage_visualizer-0.0.1.gem
 
 Gem::Specification.new do |s|
   s.name        = 'storage_visualizer'
