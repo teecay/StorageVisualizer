@@ -5,25 +5,16 @@
 ##### A report will be created in the current directory named as such: StorageReport_2015_05_25-17_19_30.html
 ##### Status messages are printed to STDOUT
 
-##### To get the gem:
-
-	gem install storage_visualizer
-
-##### To get the code:
-
-	git clone https://github.com/teecay/StorageVisualizer.git
 
 ##### Command line usage:
-
-	[sudo] ./storage_visualizer.rb [directory to visualize (default ~/) | -h (help) -i | --install (install to /usr/local/bin)]
-
-##### Install & run:
+	git clone https://github.com/teecay/StorageVisualizer.git && ./StorageVisualizer/storage_visualizer.rb --install
 	./storage_visualizer.rb --install
+	[sudo] storage_visualizer[.rb] [directory to visualize (default ~/) | -h (help) -i | --install (install to /usr/local/bin)]
 	sudo storage_visualizer /
 
 ##### API usage: 	
 
-	'require storage_visualizer'"
+	'require storage_visualizer'
 	sv = StorageVisualizer.new('[directory to visualize, ~/ by default]')
 	sv.run()
 

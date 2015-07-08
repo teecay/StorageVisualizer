@@ -26,8 +26,9 @@ class StorageVisualizer
   # Static
   def self.print_usage
     puts "\nThis tool helps visualize which directories are occupying the most storage. Any directory that occupies more than 5% of disk space is added to a visual hierarchichal storage report in the form of a Google Sankey diagram. The storage data is gathered using the linux `du` utility. It has been tested on Mac OSX, should work on linux systems, will not work on Windows. Run as sudo if analyzing otherwise inaccessible directories. May take a while to run\n"
-    puts "\nCommand line usage: \n\t[sudo] ./visualize_storage.rb [directory to visualize (default ~/) | -h (help) -i | --install (install to /usr/local/bin)]\n\n"
+    puts "\nCommand line usage: \n\t[sudo] ./visualize_storage[.rb] [directory to visualize (default ~/) | -h (help) -i | --install (install to /usr/local/bin)]\n\n"
     puts "API usage: "
+    puts "\tgem install storage_visualizer"
     puts "\t'require storage_visualizer'"
     puts "\tsv = StorageVisualizer.new('[directory to visualize, ~/ by default]')"
     puts "\tsv.run()\n\n"
@@ -35,6 +36,53 @@ class StorageVisualizer
     puts "Status messages are printed to STDOUT"
     puts "\n\n"
   end
+  
+  
+  
+  def self.install
+    # This function installs a copy & symlink into /usr/local/bin, so the utility can simply be run by typing `storage_visualizer`
+    # To install for command line use type:
+    # git clone https://github.com/teecay/StorageVisualizer.git && ./StorageVisualizer/storage_visualizer.rb --install
+    # To install for gem usage type:
+    # gem install storage_visualizer
+
+
+    script_src_path = File.expand_path(__FILE__) # File.expand_path('./StorageVisualizer/lib/storage_visualizer.rb')
+    script_dest_path = '/usr/local/bin/storage_visualizer.rb'
+    symlink_path = '/usr/local/bin/storage_visualizer'
+
+
+    if (!File.exist?(script_src_path))
+      raise "Error: file does not exist: #{script_src_path}"
+    end
+
+
+    if (File.exist?(script_dest_path))
+      puts "Removing old installed script"
+      File.delete(script_dest_path)
+    end
+
+
+    if (File.exist?(symlink_path))
+      puts "Removing old symlink"
+      File.delete(symlink_path)
+    end
+
+    cp_cmd = "cp -f #{script_src_path} #{script_dest_path}"
+    puts "Copying script into place: #{cp_cmd}"
+    `#{cp_cmd}`
+
+    ln_cmd = "ln -s #{script_path} #{symlink_path}"
+    puts "Installing: #{ln_cmd}"
+    `#{ln_cmd}`
+
+    chmod_cmd = "chmod ugo+x #{symlink_path}"
+    puts "Setting permissions: #{chmod_cmd}"
+    `#{chmod_cmd}`
+
+    puts "Installation is complete, run `storage_visualizer -h` for help"
+  end
+  
   
   # To do:
   # x Make it work on linux
@@ -381,10 +429,8 @@ def run
       StorageVisualizer.print_usage()
       return
     elsif (ARGV[0] == '-i' || ARGV[0] == '--install')
-      # install a soft link to /usr/local/bin
-      cmd = "ln -s #{File.expand_path(__FILE__)} /usr/local/bin/#{File.basename(__FILE__).split('.')[0]}"
-      puts "Install cmd: #{cmd}"
-      `#{cmd}`
+      StorageVisualizer.install
+      StorageVisualizer.print_usage
       return
     end
     vs = StorageVisualizer.new(ARGV[0])
