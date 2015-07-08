@@ -7,7 +7,7 @@
 
 
 ##### Command line usage:
-	git clone https://github.com/teecay/StorageVisualizer.git && ./StorageVisualizer/storage_visualizer.rb --install
+	git clone https://github.com/teecay/StorageVisualizer.git && ./StorageVisualizer/lib/storage_visualizer.rb --install
 	[sudo] storage_visualizer[.rb] [directory to visualize (default ~/) | -h (help) -i | --install (install to /usr/local/bin)]
 	sudo storage_visualizer /
 

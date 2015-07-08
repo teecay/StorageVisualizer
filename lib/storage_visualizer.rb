@@ -72,7 +72,7 @@ class StorageVisualizer
     puts "Copying script into place: #{cp_cmd}"
     `#{cp_cmd}`
 
-    ln_cmd = "ln -s #{script_path} #{symlink_path}"
+    ln_cmd = "ln -s #{script_dest_path} #{symlink_path}"
     puts "Installing: #{ln_cmd}"
     `#{ln_cmd}`
 
