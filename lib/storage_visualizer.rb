@@ -20,6 +20,25 @@
 require 'pp'
 require 'yaml'
 require 'date'
+require 'uri'
+require 'cgi'
+require 'json'
+
+
+class DirNode
+  attr_accessor :parent
+  attr_accessor :dir_name
+  attr_accessor :dir_short
+  attr_accessor :size_gb
+  attr_accessor :children
+  
+  def initialize()
+  end
+  
+end
+
+
+
 
 class StorageVisualizer
 
@@ -91,10 +110,10 @@ class StorageVisualizer
   # - Allow the threshold to be specified (default is 5%)
   # - Allow output filename to be specified
   # Maybe:
-  # - Prevent paths on the graph from crossing
+  # - Prevent paths on the graph from crossing (dirs with the same name become the same node)
   # - See if it would be cleaner to use the googlecharts gem (gem install googlecharts)
   # - Create an installer that sets up cron scheduling and add polling to the webpage
-  # - What to do about directories with the same name under different parents
+
 
   # disk Bytes
   attr_accessor :capacity
@@ -110,6 +129,11 @@ class StorageVisualizer
   attr_accessor :tree_formatted
   attr_accessor :diskhash
   attr_accessor :threshold_pct
+  attr_accessor :target_volume
+  attr_accessor :dupe_counter
+
+  # this is the root DirNode object 
+  attr_accessor :dir_tree
 
   # Constructor
   def initialize(target_dir_passed = nil)
@@ -127,11 +151,12 @@ class StorageVisualizer
       self.target_dir = File.expand_path('~')
     end
     
-    
+    # how much space is considered worthy of noting on the chart
     self.threshold_pct = 0.05
     self.diskhash = {}
     self.tree = []
     self.tree_formatted = ''
+    self.dupe_counter = 0
   end
   
   
@@ -213,11 +238,12 @@ class StorageVisualizer
               width: 1000,
               sankey: {
                 iterations: 32,
-                node: { label: { fontName: 'Arial',
-                                 fontSize: 10,
-                                 color: '#871b47',
-                                 bold: false,
-                                 italic: true } } },
+                node: { label: { 
+                          fontName: 'Arial',
+                          fontSize: 10,
+                          color: '#871b47',
+                          bold: false,
+                          italic: true } } }, 
             };
             
             
@@ -246,7 +272,7 @@ class StorageVisualizer
     # df -l gets info about locally-mounted filesystems
     output = `df -lk`
     
-    # OSX
+    # OSX:
     #   Filesystem                          1024-blocks  Used      Available   Capacity   iused     ifree       %iused  Mounted on
     #   /dev/disk1                          975912960    349150592 626506368   36%        87351646  156626592   36%     /
     #   localhost:/QwnJE6UBvlR1EvqouX6gMM   975912960    975912960         0   100%        0         0          100%    /Volumes/MobileBackups
@@ -275,8 +301,10 @@ class StorageVisualizer
     #   {"capacity"=>498876809216, "used"=>498876809216, "available"=>0}
     # }
 
+    # get each mount's capacity & utilization
     output.lines.each_with_index do |line, index|
       if (index == 0)
+        # skip the header line
         next
       end
       cols = line.split
@@ -304,15 +332,42 @@ class StorageVisualizer
 
     # puts "Disk mount info:"
     # pp diskhash
-    self.capacity = self.diskhash['/']['capacity']
-    self.used = self.diskhash['/']['used']
-    self.available = self.diskhash['/']['available']
+
+
+    # find the (self.)target_volume 
+    # look through diskhash keys, to find the one that most matches target_dir
+    val_of_min = 1000
+    puts "Determining which volume contains the target directory.."
+    self.diskhash.keys.each do |volume|
+      result = self.target_dir.gsub(volume, '')
+      diskhash['match_amt'] = result.length
+      puts "Considering:\t#{volume}, \t closeness: #{result.length}, \t (#{result})"
+      if (result.length < val_of_min)
+        puts "Candidate: #{volume}"
+        val_of_min = result.length
+        self.target_volume = volume
+      end
+    end    
+    
+    
+    
+    # set the capacity and utilization of the ROOT mount
+    # CHANGE THIS TO BE THE CAPACITY & UTILIZATION OF THE TARGET MOUNT
+    # self.capacity = self.diskhash['/']['capacity']
+    # self.used = self.diskhash['/']['used']
+    # self.available = self.diskhash['/']['available']
+
+
+    self.capacity   = self.diskhash[self.target_volume]['capacity']
+    self.used       = self.diskhash[self.target_volume]['used']
+    self.available  = self.diskhash[self.target_volume]['available']
 
 
 
     free_space = (self.available).to_i
     free_space_gb = "#{'%.0f' % (free_space / 1024 / 1024)}"
-    free_space_array = ['/', 'Free Space', free_space_gb]
+
+    free_space_array = [self.target_volume, 'Free Space', free_space_gb]
     self.tree.push(free_space_array)
 
     self.capacity_gb  = "#{'%.0f' % (self.capacity.to_i / 1024 / 1024)}"
@@ -324,16 +379,18 @@ class StorageVisualizer
   end
   
   
+  # Crawl the dirs recursively, beginning with the target dir
   def analyze_dirs(dir_to_analyze)
 
     # bootstrap case
-    if (dir_to_analyze == '/')
-
-      # run on all child dirs
+    # is this necessary?
+    if (dir_to_analyze == self.target_volume)
+      puts "Dir to analyze is the target volume"
+      # run on all child dirs, not this dir
       Dir.entries(dir_to_analyze).reject {|d| d.start_with?('.')}.each do |name|
         # puts "\tentry: >#{file}<"
         full_path = File.join(dir_to_analyze, name)
-        if (Dir.exist?(full_path))
+        if (Dir.exist?(full_path) && !File.symlink?(full_path))
           # puts "Contender: >#{full_path}<"
           analyze_dirs(full_path)
         end
@@ -341,8 +398,8 @@ class StorageVisualizer
       return
     end
 
-
-    cmd = "du -sxk \"#{dir_to_analyze}\""
+    # use "P" to help prevent following any symlinks
+    cmd = "du -sxkP \"#{dir_to_analyze}\""
     puts "\trunning #{cmd}"
     output = `#{cmd}`.strip().split("\t")
     # puts "Du output:"
@@ -351,28 +408,37 @@ class StorageVisualizer
     size_gb = "#{'%.0f' % (size.to_f / 1024 / 1024)}"
     # puts "Size: #{size}\nCapacity: #{self.diskhash['/']['capacity']}"
     
-    occupancy = (size.to_f / self.capacity.to_f)
+    # Occupancy as a fraction of total space
+    # occupancy = (size.to_f / self.capacity.to_f)
+
+    # Occupancy as a fraction of USED space
+    occupancy = (size.to_f / self.used.to_f)
+
     occupancy_pct = "#{'%.0f' % (occupancy * 100)}"
-    
+    occupancy_gb = "#{'%.0f' % (occupancy.to_f / 1024 / 1024)}"
     capacity_gb = "#{'%.0f' % (self.capacity.to_f / 1024 / 1024)}"
     
     # if this dir contains more than 5% of disk space, add it to the tree
     
     
     if (occupancy > self.threshold_pct)
-      puts "Dir contains more than 5% of disk space: #{dir_to_analyze} \n\tsize:\t#{size_gb} / \ncapacity:\t#{capacity_gb} = #{occupancy_pct}%"
+      # puts "Dir contains more than 5% of disk space: #{dir_to_analyze} \n\tsize:\t#{size_gb} / \ncapacity:\t#{capacity_gb} = #{occupancy_pct}%"
+      puts "Dir contains more than 5% of used disk space: #{dir_to_analyze} \n\tsize:\t#{size_gb} / \noccupancy:\t#{occupancy_gb} = #{occupancy_pct}% of used space"
       # push this dir's info
       
       if (dir_to_analyze == self.target_dir)
-        
+
+        puts "Dir to analyze is the target dir"
+        # account for space used outside of target dir
         other_space = self.used - size
         other_space_gb = "#{'%.0f' % (other_space / 1024 / 1024)}"
-        other_space_array = ['/', 'Other', other_space_gb]
+        other_space_array = [self.target_volume, 'Other', other_space_gb]
 
         short_target_dir = self.target_dir.split('/').reverse[0]
         short_target_dir = (short_target_dir == nil) ? self.target_dir : short_target_dir
 
-        comparison = ['/', short_target_dir, size_gb]
+        # comparison = ['/', short_target_dir, size_gb]
+        comparison = [self.target_volume, short_target_dir, size_gb]
         
         # add them to the array
         self.tree.push(other_space_array)
@@ -380,16 +446,64 @@ class StorageVisualizer
 
       else
         # get parent dir and add to the tree
-        short_parent = dir_to_analyze.split('/').reverse[1]
-
+        # short_parent = dir_to_analyze.split('/').reverse[1]
         # short_parent = (short_parent == nil) ? parent : short_parent
         # case for when parent is '/'
-        short_parent = (short_parent == '') ? '/' : short_parent
+        # short_parent = (short_parent == '') ? '/' : short_parent
+        # short_dir = dir_to_analyze.split('/').reverse[0]
         
-        short_dir = dir_to_analyze.split('/').reverse[0]
-        
+        # push the full dir name
+        # parent = dir_to_analyze[0..dir_to_analyze.rindex('/')-1]
         # array_to_push = [parent, dir_to_analyze, size_gb]
-        array_to_push = [short_parent, short_dir, size_gb]
+        # Just push the short dir and parent name 
+        # Leads to circular references, chart will not always render
+        # array_to_push = [short_parent, short_dir, size_gb]
+
+        # TODO: XML-encode node entries
+        # TODO: why are there duplicates for backup dirs? symlinks? try adding the P switch
+
+
+        # get 2 deep for parent and dir_to_analyze
+        # Produces very long output, abort
+        # dirs = dir_to_analyze.split('/')
+        # if (dirs.length >= 4)
+        #   parent = ".../#{dirs.reverse()[2]}/#{dirs.reverse()[1]}"
+        #   this_dir = ".../#{dirs.reverse()[1]}/#{dirs.reverse()[0]}"
+        # elsif (dirs.length == 3) 
+        #   parent = "/#{dirs.reverse()[2]}/#{dirs.reverse()[2]}/#{dirs.reverse()[1]}"
+        #   this_dir = ".../#{dirs.reverse()[1]}/#{dirs.reverse()[0]}"
+        # elsif (dirs.length == 2)
+        #   parent = "/#{dirs.reverse()[1]}"
+        #   this_dir = "/#{dirs.reverse()[1]}/#{dirs.reverse()[0]}"
+        # end
+
+        
+
+
+        puts "Dir to analyze (#{dir_to_analyze}) is not the target dir (#{self.target_dir})"
+        dirs = dir_to_analyze.split('/')
+        
+        this_dir = dirs.pop().gsub("'","\'")
+        full_parent = (dirs.length == 1) ? '/' : dirs.join('/')
+        if (full_parent == self.target_volume)
+          parent = full_parent.gsub("'","\'")
+        else
+          parent = dirs.pop().gsub("'","\'")
+        end
+
+        # build full tree here
+        # later reduce node size & deal with circulaar references
+
+        # deal with circular references
+        # if self.tree[0-n][0] == this_dir, rename this_dir
+        self.tree.each do |entry|
+          if (entry[0] == this_dir)
+            self.dupe_counter = self.dupe_counter + 1
+            this_dir = "#{this_dir} (#{self.dupe_counter})"
+          end
+        end
+
+        array_to_push = [parent, this_dir, size_gb]
         self.tree.push(array_to_push)
       end
 
@@ -399,7 +513,8 @@ class StorageVisualizer
         
         full_path = File.join(dir_to_analyze, name)
         
-        if (Dir.exist?(full_path))
+        # don't follow any symlinks
+        if (Dir.exist?(full_path) && !File.symlink?(full_path))
           # puts "Contender: >#{full_path}<"
           analyze_dirs(full_path)
         end
