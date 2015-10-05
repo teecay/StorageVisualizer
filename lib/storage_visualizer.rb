@@ -383,7 +383,7 @@ class StorageVisualizer
   def analyze_dirs(dir_to_analyze)
 
     # bootstrap case
-    # is this necessary?
+    # don't create an entry for the root because there's nothing to link to yet, scan the subdirs
     if (dir_to_analyze == self.target_volume)
       puts "Dir to analyze is the target volume"
       # run on all child dirs, not this dir
@@ -483,12 +483,12 @@ class StorageVisualizer
         puts "Dir to analyze (#{dir_to_analyze}) is not the target dir (#{self.target_dir})"
         dirs = dir_to_analyze.split('/')
         
-        this_dir = dirs.pop().gsub("'","\'")
+        this_dir = dirs.pop().gsub("'","\\\\'")
         full_parent = (dirs.length == 1) ? '/' : dirs.join('/')
         if (full_parent == self.target_volume)
-          parent = full_parent.gsub("'","\'")
+          parent = full_parent.gsub("'","\\\\'")
         else
-          parent = dirs.pop().gsub("'","\'")
+          parent = dirs.pop().gsub("'","\\\\'")
         end
 
         # build full tree here
