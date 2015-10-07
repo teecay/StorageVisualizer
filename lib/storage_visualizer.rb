@@ -435,7 +435,7 @@ class StorageVisualizer
       # account for space used outside of target dir
       other_space = self.used - size
       other_space_gb = "#{'%.0f' % (other_space / 1024 / 1024)}"
-      parent.children.push(DirNode.new(parent, self.target_volume, self.target_volume, other_space_gb))
+      parent.children.push(DirNode.new(parent, self.target_volume, 'Other Space', other_space_gb))
     end
     
     
