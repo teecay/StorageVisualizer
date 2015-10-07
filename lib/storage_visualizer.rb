@@ -293,7 +293,7 @@ class StorageVisualizer
   
   def get_basic_disk_info
     # df -l gets info about locally-mounted filesystems
-    output = `df -lk`
+    output = `df -k`
     
     # OSX:
     #   Filesystem                          1024-blocks  Used      Available   Capacity   iused     ifree       %iused  Mounted on
